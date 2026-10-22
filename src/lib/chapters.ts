@@ -6,46 +6,54 @@ export type Chapter = {
   wordIndex: number
 }
 
-const NAMED_HEADING = /^(?:CHAPTER|BOOK|PART)\s+\S+(?:\s+\S+){0,6}$/i
+/** CHAPTER I, Chapter 1, BOOK II, PART ONE, etc. */
+const NAMED_HEADING =
+  /^(?:CHAPTER|BOOK|PART)\s+(?:[IVXLCDM]+|\d+|[A-Za-z]+)(?:[.\])])?(?:\s+[A-Za-z][\w'-]*){0,4}\.?$/i
 
-const ALL_CAPS_SHORT = /^[A-Z0-9][A-Z0-9 ,.'-]{0,60}$/
+/** Short all-caps title lines only (not prose). */
+const ALL_CAPS_TITLE = /^[A-Z0-9][A-Z0-9 ,.'-]{1,50}$/
 
-function isHeadingLine(line: string): boolean {
+function isNamedHeading(line: string): boolean {
+  return NAMED_HEADING.test(line.trim())
+}
+
+function isStrictAllCapsTitle(line: string): boolean {
   const trimmed = line.trim()
-  if (!trimmed) return false
-  if (NAMED_HEADING.test(trimmed)) return true
-  if (trimmed.length <= 60 && ALL_CAPS_SHORT.test(trimmed) && /[A-Z]/.test(trimmed)) {
-    // Avoid treating ordinary short uppercase words mid-paragraph as headings:
-    // require the line to look like a title (at least one space or roman/number pattern already covered)
-    if (trimmed.split(/\s+/).length >= 2 || /^(?:CHAPTER|BOOK|PART)\b/i.test(trimmed)) {
-      return true
-    }
-  }
-  return false
+  if (!ALL_CAPS_TITLE.test(trimmed)) return false
+  if (/[.!?]$/.test(trimmed)) return false
+  const words = trimmed.split(/\s+/).filter(Boolean)
+  if (words.length < 2 || words.length > 5) return false
+  // Reject all-caps sentences that look like prose fragments.
+  const proseStarters = /^(THE|A|AN|IT|HE|SHE|THEY|WE|YOU|I|AND|BUT|FOR|SO|AS|IF|WHEN|WHERE|WHAT|THIS|THAT)\b/
+  if (proseStarters.test(trimmed)) return false
+  return true
+}
+
+function isHeadingParagraph(paragraph: string): boolean {
+  const trimmed = paragraph.trim()
+  if (!trimmed || trimmed.includes('\n')) return false
+  return isNamedHeading(trimmed) || isStrictAllCapsTitle(trimmed)
 }
 
 /**
- * Build chapter list from heading lines, or ~2000-word sections if none found.
- * Headings are lines like CHAPTER I, Chapter 1, BOOK II, PART ONE, or short all-caps lines alone between blanks.
+ * Build chapter list from heading paragraphs, or ~2000-word sections if none found.
+ * Headings: CHAPTER/BOOK/PART lines, or short all-caps titles alone between blank lines.
  */
 export function findChapters(cleanedText: string, tokens: WordToken[]): Chapter[] {
-  const lines = cleanedText.split(/\r?\n/)
+  const paragraphs = cleanedText.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean)
   const headingWordIndices: Chapter[] = []
-
-  // Map character offset of each paragraph-ish block start to nearest word index by scanning tokens text.
-  // Simpler approach: walk cleaned text with a word counter matching tokenize.
   let searchFrom = 0
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i]
-    const prevBlank = i === 0 || lines[i - 1].trim() === ''
-    const nextBlank = i === lines.length - 1 || lines[i + 1].trim() === ''
-    if (prevBlank && nextBlank && isHeadingLine(line)) {
-      const title = line.trim()
-      const idxInText = cleanedText.indexOf(line, searchFrom)
-      const wordIndex = wordIndexAtOffset(cleanedText, tokens, Math.max(0, idxInText))
-      headingWordIndices.push({ title, wordIndex })
-      searchFrom = idxInText + line.length
+
+  for (const paragraph of paragraphs) {
+    if (!isHeadingParagraph(paragraph)) {
+      searchFrom = cleanedText.indexOf(paragraph, searchFrom) + paragraph.length
+      continue
     }
+    const title = paragraph.trim()
+    const idxInText = cleanedText.indexOf(paragraph, searchFrom)
+    const wordIndex = wordIndexAtOffset(cleanedText, tokens, Math.max(0, idxInText))
+    headingWordIndices.push({ title, wordIndex })
+    searchFrom = idxInText + paragraph.length
   }
 
   if (headingWordIndices.length > 0) {
@@ -71,7 +79,6 @@ function wordIndexAtOffset(
   offset: number,
 ): number {
   if (tokens.length === 0) return 0
-  // Approximate: count whitespace-separated tokens before offset
   const before = cleanedText.slice(0, offset)
   const count = before.match(/[^\s]+/g)?.length ?? 0
   return Math.min(count, tokens.length - 1)

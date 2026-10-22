@@ -8,6 +8,7 @@ import { LogScreen } from './screens/LogScreen'
 import { ReaderScreen } from './screens/ReaderScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import {
+  deleteBook,
   getPosition,
   listBooks,
   newBookId,
@@ -162,6 +163,15 @@ export default function App() {
     void refreshBooks()
   }
 
+  const handleDeleteBook = async (book: StoredBook) => {
+    await deleteBook(book.id)
+    if (activeBook?.id === book.id) {
+      setActiveBook(null)
+      setView('load')
+    }
+    await refreshBooks()
+  }
+
   if (view === 'log') {
     return (
       <LogScreen
@@ -200,6 +210,7 @@ export default function App() {
     <LoadScreen
       books={books}
       onOpenBook={(book) => void handleOpenBook(book)}
+      onDeleteBook={handleDeleteBook}
       onImportText={handleImport}
       onOpenLog={openLog}
       onOpenSettings={openSettings}

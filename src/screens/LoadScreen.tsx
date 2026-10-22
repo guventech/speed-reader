@@ -4,6 +4,7 @@ import type { StoredBook } from '../storage/booksDb'
 type Props = {
   books: StoredBook[]
   onOpenBook: (book: StoredBook) => void
+  onDeleteBook: (book: StoredBook) => Promise<void>
   onImportText: (rawText: string, fileName: string) => Promise<void>
   onOpenLog: () => void
   onOpenSettings: () => void
@@ -12,6 +13,7 @@ type Props = {
 export function LoadScreen({
   books,
   onOpenBook,
+  onDeleteBook,
   onImportText,
   onOpenLog,
   onOpenSettings,
@@ -46,6 +48,20 @@ export function LoadScreen({
       setPaste('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not import text')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleDelete = async (book: StoredBook) => {
+    const ok = window.confirm(`Remove “${book.title}” from this device?`)
+    if (!ok) return
+    setBusy(true)
+    setError(null)
+    try {
+      await onDeleteBook(book)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not remove book')
     } finally {
       setBusy(false)
     }
@@ -89,9 +105,21 @@ export function LoadScreen({
           onChange={(e) => setPaste(e.target.value)}
           placeholder="Paste book text here"
         />
-        <button type="button" className="btn" disabled={busy} onClick={() => void handlePaste()}>
-          Use pasted text
-        </button>
+        <div className="row-actions">
+          <button type="button" className="btn" disabled={busy} onClick={() => void handlePaste()}>
+            Use pasted text
+          </button>
+          {paste ? (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={busy}
+              onClick={() => setPaste('')}
+            >
+              Clear paste
+            </button>
+          ) : null}
+        </div>
         {error ? <p className="error">{error}</p> : null}
       </section>
 
@@ -100,9 +128,23 @@ export function LoadScreen({
           <h2>Your books</h2>
           <ul className="book-list">
             {books.map((book) => (
-              <li key={book.id}>
-                <button type="button" className="book-item" onClick={() => onOpenBook(book)}>
+              <li key={book.id} className="book-row">
+                <button
+                  type="button"
+                  className="book-item"
+                  disabled={busy}
+                  onClick={() => onOpenBook(book)}
+                >
                   {book.title}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  disabled={busy}
+                  aria-label={`Remove ${book.title}`}
+                  onClick={() => void handleDelete(book)}
+                >
+                  Remove
                 </button>
               </li>
             ))}

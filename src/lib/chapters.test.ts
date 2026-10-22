@@ -23,6 +23,21 @@ describe('findChapters', () => {
     expect(chapters[0].wordIndex).toBe(0)
   })
 
+  it('does not treat all-caps prose fragments as chapters', () => {
+    const text = [
+      'IT IS A TRUTH UNIVERSALLY ACKNOWLEDGED',
+      '',
+      'That a single man must be in want of a wife.',
+      '',
+      'HE WAS QUITE SURPRISED',
+      '',
+      'And then he left.',
+    ].join('\n')
+    const tokens = tokenize(text)
+    const chapters = findChapters(text, tokens)
+    expect(chapters).toEqual([{ title: 'Section 1', wordIndex: 0 }])
+  })
+
   it('falls back to ~2000-word sections when no headings', () => {
     const words = Array.from({ length: 4500 }, (_, i) => `w${i}`).join(' ')
     const tokens = tokenize(words)

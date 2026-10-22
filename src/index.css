@@ -203,6 +203,12 @@ input[type='range']:focus-visible,
   gap: 0.5rem;
 }
 
+.book-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
 .book-item,
 .chapter-item {
   width: 100%;
@@ -213,6 +219,22 @@ input[type='range']:focus-visible,
   border: 1px solid var(--border);
   background: var(--bg);
   cursor: pointer;
+}
+
+.book-row .book-item {
+  flex: 1 1 auto;
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.btn-danger {
+  flex: 0 0 auto;
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
 }
 
 .chapter-item-current {
