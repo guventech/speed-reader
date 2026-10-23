@@ -1,28 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { chapterForWordIndex, findChapters, type Chapter } from '../lib/chapters'
+import { chapterForWordIndex, findChapters } from '../lib/chapters'
 import { wordDelayMs } from '../lib/pacing'
-import {
-  backOneSentenceIndex,
-  paragraphText,
-  sentenceText,
-  tokenize,
-  type WordToken,
-} from '../lib/tokenize'
+import { backOneSentenceIndex, paragraphText, sentenceStartIndex, tokenize } from '../lib/tokenize'
 import { savePosition } from '../storage/booksDb'
+import { bookmarkDetails } from '../lib/bookmark'
 import { appendSessionEntry } from '../storage/sessionLog'
-import {
-  clampWpm,
-  type AppSettings,
-  type ReadingMode,
-} from '../storage/settings'
+import { clampWpm, type AppSettings } from '../storage/settings'
 
 const PAUSE_END_MS = 5 * 60 * 1000
-
-export type SessionStats = {
-  wordsReadThisSession: number
-  progressPercent: number
-  currentChapter: Chapter
-}
 
 type Options = {
   bookId: string
@@ -32,248 +17,220 @@ type Options = {
   onSettingsChange: (settings: AppSettings) => void
 }
 
-export function useReadingSession({
-  bookId,
-  cleanedText,
-  initialWordIndex,
-  settings,
-  onSettingsChange,
-}: Options) {
-  const tokens = useRef<WordToken[]>(tokenize(cleanedText)).current
-  const chapters = useRef<Chapter[]>(findChapters(cleanedText, tokens)).current
-
-  const [wordIndex, setWordIndex] = useState(() =>
-    Math.min(Math.max(0, initialWordIndex), Math.max(0, tokens.length - 1)),
-  )
+// The parent keys this session by book ID; analysis runs only when a book opens.
+export function useReadingSession({ bookId, cleanedText, initialWordIndex, settings, onSettingsChange }: Options) {
+  const [{ tokens, chapters }] = useState(() => {
+    const tokens = tokenize(cleanedText)
+    return { tokens, chapters: findChapters(cleanedText, tokens) }
+  })
+  const [wordIndex, setWordIndex] = useState(() => Math.min(Math.max(0, initialWordIndex), Math.max(0, tokens.length - 1)))
   const [playing, setPlaying] = useState(false)
+  const [finished, setFinished] = useState(false)
   const [showParagraph, setShowParagraph] = useState(false)
   const [wordsReadThisSession, setWordsReadThisSession] = useState(0)
-
+  const [saveError, setSaveError] = useState('')
+  const [wakeMessage, setWakeMessage] = useState('')
   const playingRef = useRef(false)
   const wordIndexRef = useRef(wordIndex)
   const timerRef = useRef<number | null>(null)
   const pauseTimerRef = useRef<number | null>(null)
-  const sessionStartedAtRef = useRef<string | null>(null)
-  const playAccumMsRef = useRef(0)
-  const playSegmentStartRef = useRef<number | null>(null)
-  const wordsReadRef = useRef(0)
-  const sessionOpenRef = useRef(false)
+  const dueRef = useRef(0)
+  const sessionRef = useRef<{ startedAt: string; elapsed: number; segment: number | null; words: number } | null>(null)
   const wpmRef = useRef(settings.wpm)
   const modeRef = useRef(settings.mode)
+  const writesRef = useRef(Promise.resolve())
+  const positionFailedRef = useRef(false)
+  const logFailedRef = useRef(false)
 
-  useEffect(() => {
-    wordIndexRef.current = wordIndex
-  }, [wordIndex])
+  const persistPosition = useCallback((index: number) => {
+    // Serialize writes so a slow earlier save cannot overwrite a later jump.
+    writesRef.current = writesRef.current.then(async () => {
+      await savePosition(bookId, index, { ...bookmarkDetails(tokens, index), chapter: chapterForWordIndex(chapters, index).title })
+      positionFailedRef.current = false
+      if (!logFailedRef.current) setSaveError('')
+    }).catch(() => {
+      positionFailedRef.current = true
+      setSaveError('Your place could not be saved. Keep this page open and try saving again.')
+    })
+  }, [bookId, tokens, chapters])
 
-  useEffect(() => {
-    wpmRef.current = settings.wpm
-    modeRef.current = settings.mode
-  }, [settings.wpm, settings.mode])
-
-  const clearTimer = useCallback(() => {
-    if (timerRef.current !== null) {
-      window.clearTimeout(timerRef.current)
-      timerRef.current = null
+  const stopSegment = useCallback(() => {
+    const s = sessionRef.current
+    if (s?.segment != null) {
+      s.elapsed += performance.now() - s.segment
+      s.segment = null
     }
   }, [])
-
-  const clearPauseTimer = useCallback(() => {
-    if (pauseTimerRef.current !== null) {
-      window.clearTimeout(pauseTimerRef.current)
-      pauseTimerRef.current = null
-    }
-  }, [])
-
-  const persistPosition = useCallback(
-    (index: number) => {
-      void savePosition(bookId, index)
-    },
-    [bookId],
-  )
 
   const flushSession = useCallback(() => {
-    if (!sessionOpenRef.current || !sessionStartedAtRef.current) return
-    if (playSegmentStartRef.current !== null) {
-      playAccumMsRef.current += Date.now() - playSegmentStartRef.current
-      playSegmentStartRef.current = null
-    }
-    const minutesRead = playAccumMsRef.current / 60000
-    if (wordsReadRef.current > 0 || minutesRead > 0.01) {
-      appendSessionEntry({
-        startedAt: sessionStartedAtRef.current,
-        mode: modeRef.current,
-        wpm: wpmRef.current,
-        wordsRead: wordsReadRef.current,
-        minutesRead,
-      })
-    }
-    sessionOpenRef.current = false
-    sessionStartedAtRef.current = null
-    playAccumMsRef.current = 0
-    wordsReadRef.current = 0
-    setWordsReadThisSession(0)
-  }, [])
-
-  const ensureSessionStarted = useCallback(() => {
-    if (!sessionOpenRef.current) {
-      sessionOpenRef.current = true
-      sessionStartedAtRef.current = new Date().toISOString()
-      playAccumMsRef.current = 0
-      wordsReadRef.current = 0
-      setWordsReadThisSession(0)
-    }
-  }, [])
-
-  const scheduleNext = useCallback(() => {
-    clearTimer()
-    if (!playingRef.current) return
-    const index = wordIndexRef.current
-    if (index >= tokens.length) {
-      playingRef.current = false
-      setPlaying(false)
-      return
-    }
-    const delay = wordDelayMs(tokens[index], wpmRef.current)
-    timerRef.current = window.setTimeout(() => {
-      const next = wordIndexRef.current + 1
-      if (next >= tokens.length) {
-        playingRef.current = false
-        setPlaying(false)
-        persistPosition(tokens.length - 1)
-        return
+    stopSegment()
+    const s = sessionRef.current
+    if (!s) return
+    try {
+      if (s.words > 0 || s.elapsed > 600) {
+        appendSessionEntry({ startedAt: s.startedAt, mode: modeRef.current, wpm: wpmRef.current,
+          wordsRead: s.words, minutesRead: s.elapsed / 60000 })
       }
-      wordIndexRef.current = next
-      setWordIndex(next)
-      wordsReadRef.current += 1
-      setWordsReadThisSession(wordsReadRef.current)
-      persistPosition(next)
-      scheduleNext()
-    }, delay)
-  }, [clearTimer, persistPosition, tokens])
-
-  const play = useCallback(() => {
-    if (tokens.length === 0) return
-    clearPauseTimer()
-    ensureSessionStarted()
-    if (playSegmentStartRef.current === null) {
-      playSegmentStartRef.current = Date.now()
+      sessionRef.current = null
+      logFailedRef.current = false
+      if (!positionFailedRef.current) setSaveError('')
+    } catch {
+      logFailedRef.current = true
+      setSaveError('Your reading log could not be saved. Keep this page open and try saving again.')
     }
-    playingRef.current = true
-    setPlaying(true)
-    setShowParagraph(false)
-    scheduleNext()
-  }, [clearPauseTimer, ensureSessionStarted, scheduleNext, tokens.length])
+  }, [stopSegment])
+
+  const clearTimer = useCallback(() => {
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current)
+    timerRef.current = null
+  }, [])
+  const clearPauseTimer = useCallback(() => {
+    if (pauseTimerRef.current !== null) window.clearTimeout(pauseTimerRef.current)
+    pauseTimerRef.current = null
+  }, [])
 
   const pause = useCallback(() => {
     playingRef.current = false
     setPlaying(false)
     clearTimer()
-    if (playSegmentStartRef.current !== null) {
-      playAccumMsRef.current += Date.now() - playSegmentStartRef.current
-      playSegmentStartRef.current = null
-    }
+    stopSegment()
+    persistPosition(wordIndexRef.current)
     clearPauseTimer()
-    pauseTimerRef.current = window.setTimeout(() => {
-      flushSession()
-    }, PAUSE_END_MS)
-  }, [clearPauseTimer, clearTimer, flushSession])
+    pauseTimerRef.current = window.setTimeout(flushSession, PAUSE_END_MS)
+  }, [clearTimer, stopSegment, persistPosition, clearPauseTimer, flushSession])
 
-  const togglePlay = useCallback(() => {
-    if (playingRef.current) pause()
-    else play()
-  }, [pause, play])
+  const scheduleNext = useCallback(function schedule(reset = true) {
+    clearTimer()
+    if (!playingRef.current || !tokens.length) return
+    const delay = wordDelayMs(tokens[wordIndexRef.current], wpmRef.current)
+    // Carry small scheduling delays forward, but never skip words or burst after a stall.
+    const now = performance.now()
+    dueRef.current = reset ? now + delay : Math.max(dueRef.current + delay, now + delay * 0.5)
+    timerRef.current = window.setTimeout(() => {
+      if (!playingRef.current) return
+      const s = sessionRef.current
+      if (s) { s.words += 1; setWordsReadThisSession(s.words) }
+      if (wordIndexRef.current + 1 >= tokens.length) {
+        playingRef.current = false
+        setPlaying(false)
+        setFinished(true)
+        stopSegment()
+        persistPosition(wordIndexRef.current)
+        flushSession()
+        return
+      }
+      wordIndexRef.current += 1
+      setWordIndex(wordIndexRef.current)
+      persistPosition(wordIndexRef.current)
+      schedule(false)
+    }, Math.max(0, dueRef.current - now))
+  }, [clearTimer, tokens, persistPosition, flushSession, stopSegment])
 
-  const backSentence = useCallback(() => {
-    const next = backOneSentenceIndex(tokens, wordIndexRef.current)
+  const play = useCallback(() => {
+    if (!tokens.length || document.hidden || playingRef.current) return
+    clearPauseTimer()
+    if (!sessionRef.current) {
+      sessionRef.current = { startedAt: new Date().toISOString(), elapsed: 0, segment: null, words: 0 }
+      setWordsReadThisSession(0)
+    }
+    sessionRef.current.segment = performance.now()
+    playingRef.current = true
+    setPlaying(true)
+    setFinished(false)
+    setShowParagraph(false)
+    setWakeMessage(navigator.wakeLock ? '' : 'Keep your screen awake manually on this browser.')
+    scheduleNext()
+  }, [tokens.length, clearPauseTimer, scheduleNext])
+
+  const togglePlay = useCallback(() => { if (playingRef.current) pause(); else play() }, [pause, play])
+  const jumpTo = useCallback((index: number) => {
+    const next = Math.min(Math.max(0, index), Math.max(0, tokens.length - 1))
     wordIndexRef.current = next
     setWordIndex(next)
+    setFinished(false)
     persistPosition(next)
-    if (playingRef.current) {
-      scheduleNext()
+    if (playingRef.current) scheduleNext()
+  }, [tokens.length, persistPosition, scheduleNext])
+  const backSentence = useCallback(() => jumpTo(backOneSentenceIndex(tokens, wordIndexRef.current)), [jumpTo, tokens])
+  const setWpm = (wpm: number) => {
+    wpmRef.current = clampWpm(wpm)
+    onSettingsChange({ ...settings, wpm: wpmRef.current })
+    if (playingRef.current) scheduleNext()
+  }
+  const setMode = (mode: AppSettings['mode']) => {
+    modeRef.current = mode
+    onSettingsChange({ ...settings, mode })
+  }
+  const closeBook = useCallback(async () => {
+    pause()
+    clearPauseTimer()
+    flushSession()
+    await writesRef.current
+    return !positionFailedRef.current && !logFailedRef.current
+  }, [pause, clearPauseTimer, flushSession])
+  const retrySave = () => {
+    setSaveError('')
+    persistPosition(wordIndexRef.current)
+    if (!playingRef.current) flushSession()
+  }
+
+  useEffect(() => {
+    const onHidden = () => { if (document.hidden) void closeBook() }
+    const onPageHide = () => { void closeBook() }
+    document.addEventListener('visibilitychange', onHidden)
+    window.addEventListener('pagehide', onPageHide)
+    return () => {
+      document.removeEventListener('visibilitychange', onHidden)
+      window.removeEventListener('pagehide', onPageHide)
     }
-  }, [persistPosition, scheduleNext, tokens])
+  }, [closeBook])
 
-  const jumpTo = useCallback(
-    (index: number) => {
-      const next = Math.min(Math.max(0, index), Math.max(0, tokens.length - 1))
-      wordIndexRef.current = next
-      setWordIndex(next)
-      persistPosition(next)
-      if (playingRef.current) scheduleNext()
-    },
-    [persistPosition, scheduleNext, tokens.length],
-  )
-
-  const setWpm = useCallback(
-    (wpm: number) => {
-      const next = clampWpm(wpm)
-      wpmRef.current = next
-      onSettingsChange({ ...settings, wpm: next })
-      if (playingRef.current) scheduleNext()
-    },
-    [onSettingsChange, scheduleNext, settings],
-  )
-
-  const setMode = useCallback(
-    (mode: ReadingMode) => {
-      modeRef.current = mode
-      onSettingsChange({ ...settings, mode })
-    },
-    [onSettingsChange, settings],
-  )
+  useEffect(() => {
+    if (!playing) return
+    let cancelled = false
+    let lock: WakeLockSentinel | undefined
+    if (!navigator.wakeLock) return
+    void navigator.wakeLock.request('screen').then((acquired) => {
+      if (cancelled) { void acquired.release(); return }
+      lock = acquired
+      acquired.addEventListener('release', () => {
+        if (!cancelled) setWakeMessage('Screen stay-awake was released. Your phone may lock automatically.')
+      })
+    }).catch(() => {
+      if (!cancelled) setWakeMessage('Screen stay-awake is unavailable. Your phone may lock automatically.')
+    })
+    return () => { cancelled = true; if (lock && !lock.released) void lock.release() }
+  }, [playing])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.code === 'Space') {
-        event.preventDefault()
-        togglePlay()
-      } else if (event.code === 'ArrowLeft') {
-        event.preventDefault()
-        backSentence()
-      }
+      const target = event.target instanceof Element ? event.target : null
+      if (event.altKey || event.ctrlKey || event.metaKey || target?.closest('input,textarea,select,button,[role="button"],[contenteditable="true"]')) return
+      if (event.code === 'Space') { event.preventDefault(); togglePlay() }
+      else if (event.code === 'ArrowLeft') { event.preventDefault(); backSentence() }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [backSentence, togglePlay])
+  }, [togglePlay, backSentence])
 
-  useEffect(() => {
-    return () => {
-      clearTimer()
-      clearPauseTimer()
-      flushSession()
-    }
-  }, [clearPauseTimer, clearTimer, flushSession])
+  useEffect(() => () => {
+    playingRef.current = false
+    clearTimer()
+    clearPauseTimer()
+    flushSession()
+  }, [clearTimer, clearPauseTimer, flushSession])
 
-  const current = tokens[wordIndex] ?? null
-  const stats: SessionStats = {
-    wordsReadThisSession,
-    progressPercent:
-      tokens.length === 0 ? 0 : Math.round(((wordIndex + 1) / tokens.length) * 100),
-    currentChapter: chapterForWordIndex(chapters, wordIndex),
-  }
-
+  const start = !playing ? sentenceStartIndex(tokens, wordIndex) : 0
+  let end = start
+  if (!playing) while (end < tokens.length && tokens[end].sentenceIndex === tokens[start]?.sentenceIndex) end += 1
   return {
-    tokens,
-    chapters,
-    wordIndex,
-    current,
-    playing,
-    showParagraph,
-    setShowParagraph,
-    stats,
-    togglePlay,
-    pause,
-    play,
-    backSentence,
-    jumpTo,
-    setWpm,
-    setMode,
-    closeBook: flushSession,
-    sentence: sentenceText(tokens, wordIndex),
-    paragraph: paragraphText(tokens, wordIndex),
-    totalWords: tokens.length,
-    wpm: settings.wpm,
-    mode: settings.mode,
-    orpEnabled: settings.orpEnabled,
+    tokens, chapters, wordIndex, current: tokens[wordIndex] ?? null, playing, finished,
+    showParagraph, setShowParagraph, saveError, retrySave, wakeMessage,
+    stats: { wordsReadThisSession, progressPercent: tokens.length ? Math.round((wordIndex + 1) / tokens.length * 100) : 0,
+      currentChapter: chapterForWordIndex(chapters, wordIndex) },
+    togglePlay, pause, play, backSentence, jumpTo, setWpm, setMode, closeBook,
+    sentenceTokens: !playing ? tokens.slice(start, end) : [],
+    paragraph: !playing && showParagraph ? paragraphText(tokens, wordIndex) : '',
+    totalWords: tokens.length, wpm: settings.wpm, mode: settings.mode, orpEnabled: settings.orpEnabled,
   }
 }

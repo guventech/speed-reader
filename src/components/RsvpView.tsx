@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react'
 import { orpIndex } from '../lib/orp'
 import type { WordToken } from '../lib/tokenize'
 
@@ -9,6 +10,26 @@ type Props = {
 }
 
 export function RsvpView({ token, orpEnabled, fontSizePx, onTogglePlay }: Props) {
+  const stageRef = useRef<HTMLButtonElement | null>(null)
+  const wordRef = useRef<HTMLSpanElement | null>(null)
+  useLayoutEffect(() => {
+    const fit = () => {
+      const stage = stageRef.current
+      const word = wordRef.current
+      if (!stage || !word) return
+      word.style.transform = ''
+      const available = Math.max(1, stage.clientWidth - 40)
+      const before = word.querySelector<HTMLElement>('.rsvp-before')
+      const after = word.querySelector<HTMLElement>('.rsvp-after')
+      const focus = word.querySelector<HTMLElement>('.rsvp-focus')
+      const width = focus ? 2 * Math.max(before?.scrollWidth ?? 0, after?.scrollWidth ?? 0) + focus.scrollWidth : word.scrollWidth
+      word.style.transform = `scale(${Math.min(1, available / Math.max(1, width))})`
+    }
+    fit()
+    const observer = new ResizeObserver(fit)
+    if (stageRef.current) observer.observe(stageRef.current)
+    return () => observer.disconnect()
+  }, [token?.text, orpEnabled, fontSizePx])
   if (!token) {
     return (
       <button type="button" className="rsvp-stage" onClick={onTogglePlay} aria-label="Play">
@@ -45,13 +66,14 @@ export function RsvpView({ token, orpEnabled, fontSizePx, onTogglePlay }: Props)
 
   return (
     <button
+      ref={stageRef}
       type="button"
       className="rsvp-stage"
       onClick={onTogglePlay}
       aria-label="Pause or play"
       style={{ fontSize: `${fontSizePx}px` }}
     >
-      <span className="rsvp-word" aria-live="polite">
+      <span ref={wordRef} className="rsvp-word">
         {orpEnabled && focusDisplayIndex >= 0 ? (
           <>
             <span className="rsvp-before">{before}</span>
@@ -62,7 +84,6 @@ export function RsvpView({ token, orpEnabled, fontSizePx, onTogglePlay }: Props)
           <span className="rsvp-plain">{token.text}</span>
         )}
       </span>
-      <span className="rsvp-guide" aria-hidden="true" />
     </button>
   )
 }

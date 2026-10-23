@@ -1,38 +1,32 @@
+import type { WordToken } from '../lib/tokenize'
+
 type Props = {
-  sentence: string
-  currentWord: string
+  tokens: WordToken[]
+  wordIndex: number
+  fontSizePx: number
   paragraph: string
   showParagraph: boolean
   onToggleParagraph: () => void
+  onSelectWord: (index: number) => void
 }
 
-export function PausedSentence({
-  sentence,
-  currentWord,
-  paragraph,
-  showParagraph,
-  onToggleParagraph,
-}: Props) {
-  const words = sentence.split(/\s+/)
-  let marked = false
-
+export function PausedSentence({ tokens, wordIndex, fontSizePx, paragraph, showParagraph, onToggleParagraph, onSelectWord }: Props) {
   return (
-    <div className="paused-panel">
-      <p className="paused-sentence">
-        {words.map((word, i) => {
-          const isCurrent = !marked && word === currentWord
-          if (isCurrent) marked = true
-          return (
-            <span key={`${word}-${i}`} className={isCurrent ? 'word-mark' : undefined}>
-              {word}{' '}
-            </span>
-          )
-        })}
+    <section className="paused-panel" aria-label="Paused reading context">
+      <p className="eyebrow">Paused · tap a word to set your place</p>
+      <p className="paused-sentence" style={{ fontSize: `${fontSizePx}px` }}>
+        {tokens.map((token) => (
+          <span key={token.index}>
+            <button type="button" className={token.index === wordIndex ? 'context-word word-mark' : 'context-word'}
+              aria-current={token.index === wordIndex ? 'location' : undefined}
+              onClick={() => onSelectWord(token.index)}>{token.text}</button>{' '}
+          </span>
+        ))}
       </p>
-      <button type="button" className="btn" onClick={onToggleParagraph}>
+      <button type="button" className="btn btn-ghost" onClick={onToggleParagraph} aria-expanded={showParagraph}>
         {showParagraph ? 'Hide paragraph' : 'Show paragraph'}
       </button>
-      {showParagraph ? <p className="paused-paragraph">{paragraph}</p> : null}
-    </div>
+      {showParagraph ? <p className="paused-paragraph" style={{ fontSize: `${fontSizePx}px` }}>{paragraph}</p> : null}
+    </section>
   )
 }

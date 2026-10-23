@@ -29,33 +29,31 @@ function isStrictAllCapsTitle(line: string): boolean {
   return true
 }
 
-function isHeadingParagraph(paragraph: string): boolean {
-  const trimmed = paragraph.trim()
-  if (!trimmed || trimmed.includes('\n')) return false
-  return isNamedHeading(trimmed) || isStrictAllCapsTitle(trimmed)
-}
-
 /**
  * Build chapter list from heading paragraphs, or ~2000-word sections if none found.
  * Headings: CHAPTER/BOOK/PART lines, or short all-caps titles alone between blank lines.
  */
 export function findChapters(cleanedText: string, tokens: WordToken[]): Chapter[] {
   const paragraphs = cleanedText.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean)
-  const headingWordIndices: Chapter[] = []
+  const explicitHeadings: Chapter[] = []
+  const titleHeadings: Chapter[] = []
   let searchFrom = 0
 
   for (const paragraph of paragraphs) {
-    if (!isHeadingParagraph(paragraph)) {
-      searchFrom = cleanedText.indexOf(paragraph, searchFrom) + paragraph.length
-      continue
-    }
-    const title = paragraph.trim()
     const idxInText = cleanedText.indexOf(paragraph, searchFrom)
-    const wordIndex = wordIndexAtOffset(cleanedText, tokens, Math.max(0, idxInText))
-    headingWordIndices.push({ title, wordIndex })
     searchFrom = idxInText + paragraph.length
+    // Gutenberg illustration captions can leave headings such as "Chapter I.]".
+    // Normalize the navigation label only; keep book text and word offsets intact.
+    const title = paragraph.replace(/^[[(]\s*/, '').replace(/\s*[)\]]+$/, '').trim()
+    const explicit = isNamedHeading(title)
+    if (!explicit && !isStrictAllCapsTitle(paragraph)) continue
+    const wordIndex = wordIndexAtOffset(cleanedText, tokens, Math.max(0, idxInText))
+    if (explicit) explicitHeadings.push({ title, wordIndex })
+    else titleHeadings.push({ title: paragraph, wordIndex })
   }
 
+  // Numbered/named headings are stronger evidence than capitals in front matter.
+  const headingWordIndices = explicitHeadings.length ? explicitHeadings : titleHeadings
   if (headingWordIndices.length > 0) {
     return dedupeChapters(headingWordIndices)
   }
@@ -95,6 +93,7 @@ function dedupeChapters(chapters: Chapter[]): Chapter[] {
 }
 
 export function chapterForWordIndex(chapters: Chapter[], wordIndex: number): Chapter {
+  if (chapters[0] && wordIndex < chapters[0].wordIndex) return { title: 'Front matter', wordIndex: 0 }
   let current = chapters[0] ?? { title: 'Section 1', wordIndex: 0 }
   for (const chapter of chapters) {
     if (chapter.wordIndex <= wordIndex) current = chapter

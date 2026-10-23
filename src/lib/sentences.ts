@@ -30,7 +30,7 @@ export function splitSentences(text: string): string[] {
   // Decimals: 3.14
   protectedText = protectedText.replace(/(\d)\.(\d)/g, `$1${PROTECTED}$2`)
 
-  const parts = protectedText.split(/(?<=[.!?])\s+/)
+  const parts = protectedText.split(/(?<=[.!?]["'”’)]{0,3})\s+/)
   return parts
     .map((part) => part.split(PROTECTED).join('.').trim())
     .filter((part) => part.length > 0)

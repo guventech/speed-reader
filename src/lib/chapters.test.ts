@@ -1,8 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import { findChapters } from './chapters'
 import { tokenize } from './tokenize'
+import { cleanText } from './cleanText'
+import { chapterForWordIndex } from './chapters'
 
 describe('findChapters', () => {
+  it('prefers explicit chapters over publisher information and accepts illustration brackets', () => {
+    const text = cleanText('[Illustration:\n\nGEORGE ALLEN\nPUBLISHER\n\n156 CHARING CROSS ROAD\nLONDON\n\n]\n\nChapter I.]\n\nIt is a truth universally acknowledged.\n\nCHAPTER II.\n\nMr. Bennet arrived.')
+    const tokens = tokenize(text)
+    const chapters = findChapters(text, tokens)
+    expect(chapters.map((c) => c.title)).toEqual(['Chapter I.', 'CHAPTER II.'])
+    expect(tokens[chapters[0].wordIndex].text).toBe('Chapter')
+    expect(tokens[chapters[1].wordIndex].text).toBe('CHAPTER')
+    expect(chapterForWordIndex(chapters, 0).title).toBe('Front matter')
+  })
+  it('preserves named chapter titles when no numbered headings exist', () => {
+    const text = 'WINTER MORNING\n\nSnow lay on the ground.\n\nSUMMER EVENING\n\nWarmth returned.'
+    expect(findChapters(text, tokenize(text)).map((c) => c.title)).toEqual(['WINTER MORNING', 'SUMMER EVENING'])
+  })
   it('detects CHAPTER and PART headings', () => {
     const text = [
       'CHAPTER I',
