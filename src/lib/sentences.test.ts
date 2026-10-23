@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { splitSentences } from './sentences'
 
 describe('splitSentences', () => {
+  it('splits after closing dialogue quotes without splitting abbreviations', () => {
+    expect(splitSentences('"Enough!" She left. "Ask Mr. Smith." Then silence.')).toEqual([
+      '"Enough!"', 'She left.', '"Ask Mr. Smith."', 'Then silence.',
+    ])
+  })
   it('splits on full stops', () => {
     expect(splitSentences('Hello there. How are you? Fine!')).toEqual([
       'Hello there.',

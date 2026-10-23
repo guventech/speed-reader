@@ -8,6 +8,8 @@ export type AppSettings = {
   orpEnabled: boolean
   theme: ThemePreference
   fontSizePx: number
+  rsvpFontSizePx: number
+  contextFontSizePx: number
 }
 
 const STORAGE_KEY = 'speed-reader:settings'
@@ -18,6 +20,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   orpEnabled: true,
   theme: 'system',
   fontSizePx: 20,
+  rsvpFontSizePx: 32,
+  contextFontSizePx: 20,
 }
 
 export function loadSettings(): AppSettings {
@@ -30,6 +34,8 @@ export function loadSettings(): AppSettings {
       ...parsed,
       wpm: clampWpm(parsed.wpm ?? DEFAULT_SETTINGS.wpm),
       fontSizePx: clampFont(parsed.fontSizePx ?? DEFAULT_SETTINGS.fontSizePx),
+      rsvpFontSizePx: clampFont(parsed.rsvpFontSizePx ?? DEFAULT_SETTINGS.rsvpFontSizePx, 64, DEFAULT_SETTINGS.rsvpFontSizePx),
+      contextFontSizePx: clampFont(parsed.contextFontSizePx ?? DEFAULT_SETTINGS.contextFontSizePx),
     }
   } catch {
     return { ...DEFAULT_SETTINGS }
@@ -45,6 +51,6 @@ export function clampWpm(wpm: number): number {
   return Math.min(700, Math.max(100, stepped))
 }
 
-function clampFont(size: number): number {
-  return Math.min(32, Math.max(14, Math.round(size)))
+function clampFont(size: number, max = 32, fallback = 20): number {
+  return Number.isFinite(size) ? Math.min(max, Math.max(14, Math.round(size))) : fallback
 }

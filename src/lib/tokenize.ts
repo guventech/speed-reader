@@ -95,8 +95,10 @@ export function paragraphText(tokens: WordToken[], wordIndex: number): string {
   if (tokens.length === 0) return ''
   const paragraphIdx = tokens[Math.min(wordIndex, tokens.length - 1)].paragraphIndex
   const words: string[] = []
-  for (let i = 0; i < tokens.length; i += 1) {
-    if (tokens[i].paragraphIndex === paragraphIdx) words.push(tokens[i].text)
+  let start = wordIndex
+  while (start > 0 && tokens[start - 1].paragraphIndex === paragraphIdx) start -= 1
+  for (let i = start; i < tokens.length && tokens[i].paragraphIndex === paragraphIdx; i += 1) {
+    words.push(tokens[i].text)
   }
   return words.join(' ')
 }

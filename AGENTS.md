@@ -143,11 +143,11 @@ Complete the relevant parts of this section for each repository. Remove unused p
 
 ### Architecture and data
 
-- **Architecture overview:** Static SPA; clean/tokenize book text; `useReadingSession` drives RSVP and pacer; no backend
+- **Architecture overview:** Static SPA; clean/tokenize book text; `useReadingSession` drives RSVP and pacer; optional direct HTTPS plain-text source downloads; no backend
 - **API and integration contracts:** None (no network after load)
-- **Data storage:** IndexedDB for book text; localStorage for settings, reading position, session log
+- **Data storage:** IndexedDB for optional downloaded text, source metadata and per-book bookmarks; localStorage for settings and session log. Legacy books and v1 backups remain supported; new backups use v2.
 - **Authentication and authorization:** None
-- **Architectural constraints:** Offline PWA; system fonts only; no CDNs; multi-book-safe storage even if v1 uses one book
+- **Architectural constraints:** Offline PWA for downloaded books; linked books require internet. Source requests only on user actions, without credentials, referrers, proxies or persistent HTTP caching. System fonts only; no CDNs; multi-book-safe storage.
 
 ### Commands and verification
 
