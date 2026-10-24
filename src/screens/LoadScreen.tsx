@@ -120,6 +120,9 @@ export function LoadScreen({
         </div>
       </header>
 
+      {error ? <p className="error" role="alert">{error}</p> : null}
+      {notice ? <p role="status">{notice}</p> : null}
+      {busy ? <p className="muted" role="status">Working… please keep this page open.</p> : null}
       {storageError ? <p className="error" role="alert">{storageError} <button className="btn" onClick={() => void onRefresh()}>Try again</button></p> : null}
       {books[0] ? <section className="panel continue-panel">
         <p className="eyebrow">Pick up where you left off</p>
@@ -129,56 +132,6 @@ export function LoadScreen({
         <p className="speed-help">{books[0].cleanedText ? 'Available offline' : 'Internet required'}</p>
         <button className="btn btn-primary" disabled={busy} onClick={() => void runAction(() => onOpenBook(books[0]))}>Continue reading</button>
       </section> : null}
-
-      <section className="panel">
-        <h2>Open a book</h2>
-        <p className="muted">Choose a local .txt file, paste text, or open a direct plain-text link.</p>
-        <label className="stack-label" htmlFor="import-source">Source link (optional for files and pasted text)</label>
-        <input id="import-source" type="url" inputMode="url" className="select" maxLength={4096} disabled={busy}
-          placeholder="https://example.org/book.txt" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} aria-describedby="source-help" />
-        <p id="source-help" className="speed-help">Links must serve UTF-8 plain text and allow browser downloads. Opening a link contacts its website. Your bookmark stays on your device.</p>
-        <button className="btn" disabled={busy || !sourceUrl.trim()} onClick={() => void runAction(() => onImportLink(sourceUrl))}>Open from link</button>
-        <label className="file-button btn btn-primary">
-          {busy ? 'Loading…' : 'Choose .txt file'}
-          <input
-            type="file"
-            accept=".txt,text/plain"
-            className="visually-hidden"
-            disabled={busy}
-            onChange={(e) => { const file = e.target.files?.[0] ?? null; e.target.value = ''; void handleFile(file) }}
-          />
-        </label>
-        <label className="stack-label" htmlFor="paste-box">
-          Or paste text
-        </label>
-        <textarea
-          id="paste-box"
-          className="paste-box"
-          rows={6}
-          value={paste}
-          disabled={busy}
-          onChange={(e) => setPaste(e.target.value)}
-          placeholder="Paste book text here"
-        />
-        <div className="row-actions">
-          <button type="button" className="btn" disabled={busy} onClick={() => void handlePaste()}>
-            Use pasted text
-          </button>
-          {paste ? (
-            <button
-              type="button"
-              className="btn btn-ghost"
-              disabled={busy}
-              onClick={() => setPaste('')}
-            >
-              Clear paste
-            </button>
-          ) : null}
-        </div>
-        {error ? <p className="error" role="alert">{error}</p> : null}
-        {notice ? <p role="status">{notice}</p> : null}
-        {busy ? <p className="muted" role="status">Working… please keep this page open.</p> : null}
-      </section>
 
       {books.length > 0 ? (
         <section className="panel">
@@ -215,6 +168,56 @@ export function LoadScreen({
           </ul>
         </section>
       ) : null}
+
+      <details className="panel import-panel" open={!books.length ? true : undefined}>
+        <summary><h2>Add a book</h2><span className="muted">File, link or pasted text</span></summary>
+        <div className="import-fields">
+          <p className="muted">Choose a local .txt file, paste text, or open a direct plain-text link.</p>
+          <label className="stack-label" htmlFor="import-source">Source link (optional for files and pasted text)</label>
+          <input id="import-source" type="url" inputMode="url" className="select" maxLength={4096} disabled={busy}
+            placeholder="https://example.org/book.txt" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} aria-describedby="source-help" />
+          <p id="source-help" className="speed-help">Links must serve UTF-8 plain text and allow browser downloads. Opening a link contacts its website. Your bookmark stays on your device.</p>
+          <button className="btn" disabled={busy || !sourceUrl.trim()} onClick={() => void runAction(() => onImportLink(sourceUrl))}>Open from link</button>
+          <label className="file-button btn btn-primary">
+            {busy ? 'Loading…' : 'Choose .txt file'}
+            <input
+              type="file"
+              accept=".txt,text/plain"
+              className="visually-hidden"
+              disabled={busy}
+              onChange={(e) => { const file = e.target.files?.[0] ?? null; e.target.value = ''; void handleFile(file) }}
+            />
+          </label>
+          <label className="stack-label" htmlFor="paste-box">
+            Or paste text
+          </label>
+          <textarea
+            id="paste-box"
+            className="paste-box"
+            rows={6}
+            value={paste}
+            disabled={busy}
+            onChange={(e) => setPaste(e.target.value)}
+            placeholder="Paste book text here"
+          />
+          <div className="row-actions">
+            <button type="button" className="btn" disabled={busy} onClick={() => void handlePaste()}>
+              Use pasted text
+            </button>
+            {paste ? (
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={busy}
+                onClick={() => setPaste('')}
+              >
+                Clear paste
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </details>
+
       <section className="panel">
         <h2>Keep your place safe</h2>
         <p className="muted">Backups include downloaded books, source links and reading positions. Books marked “Internet required” include no full text. Settings and session logs are separate.</p>

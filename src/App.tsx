@@ -25,6 +25,7 @@ function applyTheme(theme: AppSettings['theme']) {
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
   const dark = theme === 'dark' || (theme === 'system' && prefersDark)
   root.dataset.theme = dark ? 'dark' : 'light'
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0e1012' : '#f7f5f1')
 }
 
 function ReaderSession({

@@ -13,8 +13,8 @@ export default defineConfig({
         name: 'Speed Reader',
         short_name: 'SpeedReader',
         description: 'Phone-first RSVP and pacer reader for public-domain books',
-        theme_color: '#111111',
-        background_color: '#111111',
+        theme_color: '#f7f5f1',
+        background_color: '#f7f5f1',
         display: 'standalone',
         start_url: '/',
         icons: [

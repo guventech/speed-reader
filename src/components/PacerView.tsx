@@ -11,7 +11,7 @@ type Props = {
 }
 
 export function PacerView({ tokens, wordIndex, fontSizePx, playing, onSelectWord }: Props) {
-  const activeRef = useRef<HTMLSpanElement | null>(null)
+  const activeRef = useRef<HTMLButtonElement | null>(null)
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const chunks = useMemo(() => readingChunks(tokens), [tokens])
   const chunkIndex = useMemo(() => {
@@ -30,6 +30,9 @@ export function PacerView({ tokens, wordIndex, fontSizePx, playing, onSelectWord
     const active = activeRef.current
     const scroller = scrollerRef.current
     if (!active || !scroller) return
+    if (!playing && document.activeElement?.closest('.pacer-word')) {
+      active.focus({ preventScroll: true })
+    }
     const container = scroller.getBoundingClientRect()
     const word = active.getBoundingClientRect()
     // Scroll at line boundaries rather than restarting an animation on every word.
@@ -38,24 +41,36 @@ export function PacerView({ tokens, wordIndex, fontSizePx, playing, onSelectWord
     if (word.top < top || word.bottom > bottom) {
       scroller.scrollTop += word.top - top
     }
-  }, [wordIndex, windowStart, fontSizePx])
+  }, [wordIndex, windowStart, fontSizePx, playing])
 
   return (
     <div ref={scrollerRef} className="pacer-stage" style={{ fontSize: `${fontSizePx}px` }}
-      tabIndex={0} role="region" aria-label="Book text. Pause to select a word."
+      tabIndex={playing ? 0 : -1} role="region" aria-label="Book text. Pause to select a word."
+      aria-describedby="pacer-help"
+      onKeyDown={(event) => {
+        if (playing || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return
+        event.preventDefault()
+        event.stopPropagation()
+        onSelectWord(Math.max(0, Math.min(tokens.length - 1, wordIndex + (event.key === 'ArrowRight' ? 1 : -1))))
+      }}
       onClick={(event) => {
         if (playing) return
         const target = (event.target as HTMLElement).closest<HTMLElement>('[data-word-index]')
         if (target) onSelectWord(Number(target.dataset.wordIndex))
       }}>
+      <p id="pacer-help" className="visually-hidden">While paused, tap a word to set your place, or focus the current word and use the left and right arrow keys.</p>
       {!playing && windowStart > 0 ? <button className="btn btn-ghost" onClick={() => onSelectWord(chunks[windowStart - 1][0].index)}>Earlier text</button> : null}
       {chunks.slice(windowStart, chunkIndex + 3).map((words) => (
         <p key={words[0].index} className="pacer-paragraph">
           {words.map((token) => (
-            <span key={token.index} ref={token.index === wordIndex ? activeRef : undefined}
-              data-word-index={token.index}
-              className={token.index === wordIndex ? 'pacer-word pacer-word-active' : 'pacer-word'}>
-              {token.text}{' '}
+            <span key={token.index}>
+              <button type="button" ref={token.index === wordIndex ? activeRef : undefined}
+                data-word-index={token.index} disabled={playing}
+                tabIndex={!playing && token.index === wordIndex ? 0 : -1}
+                aria-current={token.index === wordIndex ? 'location' : undefined}
+                className={token.index === wordIndex ? 'pacer-word pacer-word-active' : 'pacer-word'}>
+                {token.text}
+              </button>{' '}
             </span>
           ))}
         </p>
