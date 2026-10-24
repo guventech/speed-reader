@@ -47,11 +47,12 @@ export function ReaderScreen({ session, title, settingsError, sourceNotice, rsvp
       {settingsError ? <p className="error" role="alert">{settingsError}</p> : null}
       {sourceNotice ? <p className="muted" role="status">{sourceNotice}</p> : null}
       <div className="reading-toolbar">
-        <div className="mode-toggle" role="group" aria-label="Reading mode">
+        <div className="mode-toggle" role="group" aria-label="Reading mode" aria-describedby="mode-help">
           {(['rsvp', 'pacer'] as const).map((value) => <button key={value} type="button" className={mode === value ? 'btn btn-active' : 'btn'} aria-pressed={mode === value} onClick={() => session.setMode(value)}>{value === 'rsvp' ? 'RSVP' : 'Pacer'}</button>)}
         </div>
         <button className="btn btn-ghost" aria-expanded={searchOpen} onClick={() => { session.pause(); setSearchOpen(!searchOpen) }}>Find text</button>
       </div>
+      <p id="mode-help" className="mode-help">{mode === 'rsvp' ? 'RSVP · One word at a time. Tap the word to play or pause.' : 'Pacer · Follow the moving highlight. Pause to select a word.'}</p>
       {searchOpen ? <section className="panel search-panel" aria-label="Find in book">
         <form onSubmit={(e) => { e.preventDefault(); setResults(searchBook(session.tokens, query)) }}>
           <label htmlFor="book-search">Find a word or phrase</label>
@@ -61,18 +62,25 @@ export function ReaderScreen({ session, title, settingsError, sourceNotice, rsvp
           <ul className="search-results">{results.map((result) => <li key={result.wordIndex}><button className="chapter-item" onClick={() => { session.pause(); session.jumpTo(result.wordIndex); setSearchOpen(false) }}>{result.excerpt}</button></li>)}</ul></> : null}
       </section> : null}
       {session.finished ? <p className="completion" role="status">Book complete. Well read.</p> : null}
-      {mode === 'rsvp' ? <RsvpView token={current} orpEnabled={session.orpEnabled} fontSizePx={rsvpFontSizePx} onTogglePlay={session.togglePlay} /> : pacerSlot}
-      {!playing ? <PausedSentence tokens={session.sentenceTokens} wordIndex={session.wordIndex} fontSizePx={contextFontSizePx} paragraph={session.paragraph} showParagraph={session.showParagraph} onToggleParagraph={() => session.setShowParagraph(!session.showParagraph)} onSelectWord={session.jumpTo} /> : null}
-      <footer className="reader-controls">
-        <div className="playback-row">
-          <button type="button" className="btn btn-wide" onClick={session.backSentence}>Back sentence</button>
-          <button type="button" className="btn btn-wide btn-primary" onClick={session.togglePlay} aria-pressed={playing}>{playing ? 'Pause' : 'Play'}</button>
+      <div className="reader-body">
+        <div className="reading-space">
+          {mode === 'rsvp' ? <RsvpView token={current} orpEnabled={session.orpEnabled} fontSizePx={rsvpFontSizePx} onTogglePlay={session.togglePlay} /> : pacerSlot}
+          {!playing && mode === 'rsvp' ? <PausedSentence tokens={session.sentenceTokens} wordIndex={session.wordIndex} fontSizePx={contextFontSizePx} paragraph={session.paragraph} showParagraph={session.showParagraph} onToggleParagraph={() => session.setShowParagraph(!session.showParagraph)} onSelectWord={session.jumpTo} /> : null}
         </div>
-        <label className="wpm-control"><span>Base speed <strong>{wpm} WPM</strong></span><input type="range" min={100} max={700} step={10} value={wpm} onChange={(e) => session.setWpm(Number(e.target.value))} aria-label="Base words per minute" aria-describedby="speed-help" /></label>
-        <p id="speed-help" className="speed-help">Pauses for punctuation and longer words lower the average speed.</p>
-        <div className="reader-meta"><span>{stats.wordsReadThisSession.toLocaleString()} words this session</span><button className="btn btn-ghost" onClick={() => leaveReader(onOpenLog)}>Session log</button></div>
-        {playing && session.wakeMessage ? <p className="speed-help" role="status">{session.wakeMessage}</p> : null}
-      </footer>
+        <footer className="reader-controls">
+          <div className="playback-row">
+            <button type="button" className="btn btn-wide" onClick={session.backSentence}>Back sentence</button>
+            <button type="button" className="btn btn-wide btn-primary" onClick={session.togglePlay} aria-pressed={playing}>{playing ? 'Pause' : 'Play'}</button>
+          </div>
+          <label className="wpm-control"><span>Base speed <strong>{wpm} WPM</strong></span><input type="range" min={100} max={700} step={10} value={wpm} onChange={(e) => session.setWpm(Number(e.target.value))} aria-label="Base words per minute" aria-describedby="speed-help" /></label>
+          <details className="session-details">
+            <summary>{stats.wordsReadThisSession.toLocaleString()} words · Session details</summary>
+            <p id="speed-help" className="speed-help">Pauses for punctuation and longer words lower the average speed.</p>
+            <button className="btn btn-ghost" onClick={() => leaveReader(onOpenLog)}>Session log</button>
+          </details>
+          {playing && session.wakeMessage ? <p className="speed-help" role="status">{session.wakeMessage}</p> : null}
+        </footer>
+      </div>
     </div>
   )
 }
