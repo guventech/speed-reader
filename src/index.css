@@ -481,6 +481,31 @@ input[type='range']:focus-visible,
 .mode-toggle { border: 1px solid var(--border); border-radius: 12px; padding: 3px; gap: 3px; }
 .mode-toggle .btn { border-color: transparent; }
 .speed-help { margin: 0; color: var(--muted); font-size: 0.75rem; }
+
+.empty-library-tip {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.site-footer {
+  margin-top: auto;
+  padding-top: 0.5rem;
+  text-align: center;
+}
+
+.site-footer-link {
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.site-footer-link:hover,
+.site-footer-link:focus-visible {
+  color: var(--accent);
+}
 .wpm-control > span { display: flex; justify-content: space-between; }
 .wpm-control strong { color: var(--text); font-variant-numeric: tabular-nums; }
 input[type='range'] { min-height: 32px; accent-color: var(--accent); }

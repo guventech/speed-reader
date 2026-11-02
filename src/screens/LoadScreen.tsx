@@ -133,6 +133,12 @@ export function LoadScreen({
         <button className="btn btn-primary" disabled={busy} onClick={() => void runAction(() => onOpenBook(books[0]))}>Continue reading</button>
       </section> : null}
 
+      {books.length === 0 ? (
+        <p className="empty-library-tip" role="note">
+          RSVP shows one word at a time; Pacer moves a highlight through the paragraph. Your place stays on this device.
+        </p>
+      ) : null}
+
       {books.length > 0 ? (
         <section className="panel">
           <h2>Your books</h2>
@@ -226,6 +232,12 @@ export function LoadScreen({
           <label className="file-button btn">Restore backup<input className="visually-hidden" type="file" accept=".json,application/json" disabled={busy} onChange={(e) => { const file = e.target.files?.[0]; if (file) void handleBackup(file); e.target.value = '' }} /></label>
         </div>
       </section>
+
+      <footer className="site-footer">
+        <a className="site-footer-link" href="https://www.bircans.com/guven" rel="noopener noreferrer">
+          Back to Bircans
+        </a>
+      </footer>
     </div>
   )
 }
