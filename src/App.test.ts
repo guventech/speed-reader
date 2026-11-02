@@ -69,6 +69,18 @@ afterEach(async () => {
 })
 
 describe('full reading workflow', () => {
+  it('shows an empty-library tip and a Bircans link before any books are saved', async () => {
+    expect(host.querySelector('.empty-library-tip')?.textContent).toMatch(/RSVP/)
+    expect(host.querySelector('.empty-library-tip')?.textContent).toMatch(/Pacer/)
+    const bircans = host.querySelector<HTMLAnchorElement>('.site-footer-link')
+    expect(bircans?.textContent).toBe('Back to Bircans')
+    expect(bircans?.href).toBe('https://www.bircans.com/guven')
+    await fill('#paste-box', 'one two three four five six seven eight nine ten.')
+    await click('Use pasted text')
+    await click('Books')
+    expect(host.querySelector('.empty-library-tip')).toBeNull()
+    expect(host.querySelector('.site-footer-link')?.textContent).toBe('Back to Bircans')
+  })
   it('applies independent sizes to the RSVP word, paused context and pacer', async () => {
     await fill('#paste-box', 'one two three four five six seven eight nine ten.')
     await click('Use pasted text')
