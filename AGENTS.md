@@ -128,9 +128,9 @@ Complete the relevant parts of this section for each repository. Remove unused p
 
 ### Project purpose and users
 
-- **Purpose:** Phone-first RSVP / pacer reader for one local Project Gutenberg `.txt`
+- **Purpose:** Phone-first RSVP / pacer reader with a local library, downloaded or linked plain-text books, and per-book reading progress. Read `README.md` for current behaviour; `CURSOR_PROMPT_reader_v1.md` is the historical v1 brief.
 - **Primary users:** Single private reader (Guven)
-- **Success criteria:** See acceptance checklist in `CURSOR_PROMPT_reader_v1.md`
+- **Success criteria:** Current workflows in `README.md` and their reading/storage regression tests. The v1 prompt's acceptance checklist is historical background.
 - **Out of scope:** Share target, accounts/sync/analytics, non-English, epub/pdf, quizzes, AI, TTS
 
 ### Stack and repository map
@@ -144,7 +144,7 @@ Complete the relevant parts of this section for each repository. Remove unused p
 ### Architecture and data
 
 - **Architecture overview:** Static SPA; clean/tokenize book text; `useReadingSession` drives RSVP and pacer; optional direct HTTPS plain-text source downloads; no backend
-- **API and integration contracts:** None (no network after load)
+- **API and integration contracts:** No application backend. Linked-book source requests happen on user actions under the source-download constraints below.
 - **Data storage:** IndexedDB for optional downloaded text, source metadata and per-book bookmarks; localStorage for settings and session log. Legacy books and v1 backups remain supported; new backups use v2.
 - **Authentication and authorization:** None
 - **Architectural constraints:** Offline PWA for downloaded books; linked books require internet. Source requests only on user actions, without credentials, referrers, proxies or persistent HTTP caching. System fonts only; no CDNs; multi-book-safe storage.
@@ -157,7 +157,7 @@ Complete the relevant parts of this section for each repository. Remove unused p
 - **Full test suite:** `npm test`
 - **Lint / typecheck / format:** `npm run lint`; typecheck via `npm run build`
 - **Build / end-to-end tests:** `npm run build`; manual phone-width + offline checks per prompt
-- **Environment prerequisites:** Node 20+ recommended; GitHub `gh` for private repo; Vercel for static host
+- **Environment prerequisites:** Use a Node.js version supported by the installed Vite package (currently Node 20.19+ or 22.12+); Vercel serves the static production build.
 
 ### Environment and secrets
 
@@ -169,14 +169,14 @@ Complete the relevant parts of this section for each repository. Remove unused p
 ### Project-specific rules and constraints
 
 - Commit author must be `Guventech <67098879+guventech@users.noreply.github.com>` via `--author` (do not change global git config)
-- App work on `feat/v1-reader`; one PR; do not merge
+- `main` is the deployed branch of `guventech/speed-reader` (Vercel project `speed-reader`, live at `https://speed-reader-delta-nine.vercel.app`). Use a focused feature branch and PR for ongoing work. Merge or deploy only when the user authorizes that release; the original v1 branch/no-merge instruction is complete.
 - Keep dependencies few: React, `idb`, `vite-plugin-pwa`, Vitest
 
 ### Known issues and open decisions
 
 - **Known gotchas:** Vercel Hobby rejects deploys if git author is not the Guventech noreply identity
-- **Open decisions:** None for v1
-- **Current status / next steps:** Implementing v1 per plan
+- **Open decisions:** No new feature phase is authorized by this document; establish the scope of the next request before implementation.
+- **Current status / next steps:** The reading workflow and portfolio-return navigation are deployed on `main`. Preserve bookmarks, import/backup compatibility, offline behaviour and save-failure recovery when making changes.
 
 ### Definition of done
 
