@@ -1,19 +1,20 @@
+import { PortfolioLink, ReturnLink } from '../components/ReturnLink'
 import type { AppSettings, ThemePreference } from '../storage/settings'
 
 type Props = {
   settings: AppSettings
   error?: string
   onChange: (settings: AppSettings) => void
+  backToReader?: boolean
   onBack: () => void
 }
 
-export function SettingsScreen({ settings, error, onChange, onBack }: Props) {
+export function SettingsScreen({ settings, error, onChange, backToReader = false, onBack }: Props) {
   return (
     <div className="screen">
-      <header className="top-bar">
-        <button type="button" className="btn btn-ghost" onClick={onBack}>
-          Back
-        </button>
+      <PortfolioLink />
+      <header className="top-bar return-bar">
+        <ReturnLink href={backToReader ? "/#reader" : "/#library"} onNavigate={onBack}>{backToReader ? "Back to reader" : "Back to library"}</ReturnLink>
         <h1 className="screen-title">Settings</h1>
         <span className="top-bar-spacer" />
       </header>

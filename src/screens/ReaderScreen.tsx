@@ -1,3 +1,4 @@
+import { PortfolioLink, ReturnLink, portfolioUrl } from '../components/ReturnLink'
 import { useState, type ReactNode } from 'react'
 import { PausedSentence } from '../components/PausedSentence'
 import { RsvpView } from '../components/RsvpView'
@@ -30,8 +31,9 @@ export function ReaderScreen({ session, title, settingsError, sourceNotice, rsvp
 
   return (
     <div className="screen reader-screen">
+      <PortfolioLink onNavigate={() => leaveReader(() => window.location.assign(portfolioUrl))} />
       <header className="top-bar">
-        <button type="button" className="btn btn-ghost" onClick={() => leaveReader(onCloseBook)}>Books</button>
+        <ReturnLink href="/#library" onNavigate={() => leaveReader(onCloseBook)}>Back to library</ReturnLink>
         <div className="top-bar-actions">
           <button type="button" className="btn btn-ghost" onClick={() => { session.pause(); onOpenChapters() }}>Chapters</button>
           <button type="button" className="btn btn-ghost" onClick={() => leaveReader(onOpenSettings)}>Settings</button>

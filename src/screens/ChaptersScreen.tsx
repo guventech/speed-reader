@@ -1,22 +1,26 @@
+import { PortfolioLink, ReturnLink } from '../components/ReturnLink'
 import type { Chapter } from '../lib/chapters'
 
 type Props = {
   chapters: Chapter[]
   currentWordIndex: number
+  saveError: string
+  onRetrySave: () => void
+  onReturnToPortfolio: () => Promise<void>
   onJump: (wordIndex: number) => void
   onBack: () => void
 }
 
-export function ChaptersScreen({ chapters, currentWordIndex, onJump, onBack }: Props) {
+export function ChaptersScreen({ chapters, currentWordIndex, saveError, onRetrySave, onReturnToPortfolio, onJump, onBack }: Props) {
   return (
     <div className="screen">
-      <header className="top-bar">
-        <button type="button" className="btn btn-ghost" onClick={onBack}>
-          Back
-        </button>
+      <PortfolioLink onNavigate={onReturnToPortfolio} />
+      <header className="top-bar return-bar">
+        <ReturnLink href="/#reader" onNavigate={onBack}>Back to reader</ReturnLink>
         <h1 className="screen-title">Chapters</h1>
         <span className="top-bar-spacer" />
       </header>
+      {saveError ? <div className="error" role="alert">{saveError} <button className="btn" onClick={onRetrySave}>Try saving again</button></div> : null}
       <ul className="chapter-list">
         {chapters.map((chapter) => {
           const isCurrent =
