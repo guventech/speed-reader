@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { PacerView } from './components/PacerView'
+import { portfolioUrl } from './components/ReturnLink'
 import { useReadingSession } from './hooks/useReadingSession'
 import { chapterForWordIndex, findChapters } from './lib/chapters'
 import { tokenize } from './lib/tokenize'
@@ -50,6 +51,7 @@ function ReaderSession({
   onOpenSettings: (wordIndex: number) => void
 }) {
   const [view, setView] = useState<View>('reader')
+  useEffect(() => { window.history.replaceState(null, '', '/#' + view) }, [view])
   const session = useReadingSession({
     bookId: book.id,
     cleanedText: book.cleanedText,
@@ -63,6 +65,11 @@ function ReaderSession({
       <ChaptersScreen
         chapters={session.chapters}
         currentWordIndex={session.wordIndex}
+        saveError={session.saveError}
+        onRetrySave={session.retrySave}
+        onReturnToPortfolio={async () => {
+          if (await session.closeBook()) window.location.assign(portfolioUrl)
+        }}
         onBack={() => setView('reader')}
         onJump={(wordIndex) => {
           session.jumpTo(wordIndex)
@@ -105,7 +112,11 @@ export default function App() {
   const [sourceNotice, setSourceNotice] = useState('')
   const [activeBook, setActiveBook] = useState<StoredBook | null>(null)
   const [initialWordIndex, setInitialWordIndex] = useState(0)
-  const [view, setView] = useState<View>('load')
+  const [view, setView] = useState<View>(() => window.location.hash === '#settings' ? 'settings' : window.location.hash === '#log' ? 'log' : 'load')
+  useEffect(() => {
+    window.history.replaceState(null, '', view === 'load' ? '/#library' : '/#' + view)
+  }, [view])
+
   const [logEntries, setLogEntries] = useState<SessionEntry[]>(() => loadSessionLog())
   const [returnView, setReturnView] = useState<View>('load')
 
@@ -208,6 +219,7 @@ export default function App() {
     return (
       <LogScreen
         entries={logEntries}
+        backToReader={returnView === 'reader' && !!activeBook}
         onBack={() => setView(returnView === 'reader' && activeBook ? 'reader' : 'load')}
       />
     )
@@ -217,6 +229,7 @@ export default function App() {
     return (
       <SettingsScreen
         settings={settings}
+        backToReader={returnView === 'reader' && !!activeBook}
         error={settingsError}
         onChange={handleSettingsChange}
         onBack={() => setView(returnView === 'reader' && activeBook ? 'reader' : 'load')}

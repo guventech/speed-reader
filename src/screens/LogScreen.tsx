@@ -1,17 +1,18 @@
+import { PortfolioLink, ReturnLink } from '../components/ReturnLink'
 import { downloadSessionCsv, type SessionEntry } from '../storage/sessionLog'
 
 type Props = {
   entries: SessionEntry[]
+  backToReader?: boolean
   onBack: () => void
 }
 
-export function LogScreen({ entries, onBack }: Props) {
+export function LogScreen({ entries, backToReader = false, onBack }: Props) {
   return (
     <div className="screen">
-      <header className="top-bar">
-        <button type="button" className="btn btn-ghost" onClick={onBack}>
-          Back
-        </button>
+      <PortfolioLink />
+      <header className="top-bar return-bar">
+        <ReturnLink href={backToReader ? "/#reader" : "/#library"} onNavigate={onBack}>{backToReader ? "Back to reader" : "Back to library"}</ReturnLink>
         <h1 className="screen-title">Session log</h1>
         <span className="top-bar-spacer" />
       </header>

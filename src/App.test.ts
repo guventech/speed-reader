@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { webcrypto } from 'node:crypto'
-import type { StoredBook } from './storage/booksDb'
+import { savePosition, type StoredBook } from './storage/booksDb'
 import type { BookmarkDetails } from './lib/bookmark'
 
 const storage = vi.hoisted(() => ({ books: [] as StoredBook[], positions: new Map<string, number>(), bookmarks: new Map<string, BookmarkDetails>() }))
@@ -29,7 +29,7 @@ vi.mock('./storage/booksDb', () => ({
 let root: Root
 let host: HTMLDivElement
 async function click(text: string) {
-  const button = [...host.querySelectorAll('button')].find((b) => b.textContent === text)
+  const button = [...host.querySelectorAll<HTMLButtonElement | HTMLAnchorElement>('button, a')].find((b) => b.textContent === text || b.textContent === '←' + text)
   expect(button, `button ${text}`).toBeTruthy()
   await act(async () => button!.click())
   await vi.waitFor(async () => {
@@ -53,6 +53,7 @@ beforeEach(async () => {
   vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} }))
   Object.defineProperty(document, 'hidden', { configurable: true, value: false })
   localStorage.clear()
+  window.history.replaceState(null, '', '/')
   storage.books = []
   storage.positions.clear()
   storage.bookmarks.clear()
@@ -69,17 +70,58 @@ afterEach(async () => {
 })
 
 describe('full reading workflow', () => {
-  it('shows an empty-library tip and a Bircans link before any books are saved', async () => {
-    expect(host.querySelector('.empty-library-tip')?.textContent).toMatch(/RSVP/)
-    expect(host.querySelector('.empty-library-tip')?.textContent).toMatch(/Pacer/)
-    const bircans = host.querySelector<HTMLAnchorElement>('.site-footer-link')
-    expect(bircans?.textContent).toBe('Back to Bircans')
-    expect(bircans?.href).toBe('https://www.bircans.com/guven')
+  it('waits for chapter-screen saves and keeps failed returns open for recovery', async () => {
     await fill('#paste-box', 'one two three four five six seven eight nine ten.')
     await click('Use pasted text')
-    await click('Books')
+    await act(async () => host.querySelectorAll<HTMLButtonElement>('.context-word')[4].click())
+    await click('Chapters')
+    let failSave: (error: Error) => void = () => {}
+    vi.mocked(savePosition).mockImplementationOnce(() => new Promise<void>((_, reject) => { failSave = reject }))
+    const link = host.querySelector<HTMLAnchorElement>('a[href="https://www.bircans.com/guven#tools"]')!
+    const departure = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })
+    await act(async () => link.dispatchEvent(departure))
+    expect(departure.defaultPrevented).toBe(true)
+    expect(host.querySelector('h1')?.textContent).toBe('Chapters')
+    await act(async () => failSave(new Error('quota')))
+    expect(host.querySelector('h1')?.textContent).toBe('Chapters')
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('Your place could not be saved')
+    await click('Try saving again')
+    expect(host.querySelector('[role="alert"]')).toBeNull()
+    await click('Back to reader')
+    expect(host.querySelector('.word-mark')?.textContent).toBe('five')
+    expect(storage.positions.get('test-book')).toBe(4)
+  })
+
+  it('opens Settings directly and gives a deterministic library return', async () => {
+    await act(async () => root.unmount())
+    window.history.replaceState(null, '', '/#settings')
+    root = createRoot(host)
+    await act(async () => root.render(createElement(App)))
+    expect(host.querySelector('h1')?.textContent).toBe('Settings')
+    expect(host.querySelector('a[href="/#library"]')).toBeTruthy()
+    await click('Back to library')
+    expect(host.querySelector('h1')?.textContent).toBe('Speed Reader')
+    expect(window.location.hash).toBe('#library')
+  })
+
+  it('shows portfolio links before the title and in the library footer', async () => {
+    expect(host.querySelector('.empty-library-tip')?.textContent).toMatch(/RSVP/)
+    expect(host.querySelector('.empty-library-tip')?.textContent).toMatch(/Pacer/)
+    const bircans = host.querySelector<HTMLAnchorElement>('.site-footer .return-link')
+    expect(bircans?.textContent).toBe('←Tools I built')
+    expect(bircans?.href).toBe('https://www.bircans.com/guven#tools')
+    expect(host.querySelector('.screen')?.firstElementChild).toBe(host.querySelector('.return-link'))
+    expect(bircans?.target).toBe('')
+    await click('Settings')
+    expect(host.querySelector('h1')?.textContent).toBe('Settings')
+    expect(host.querySelector('.return-link')?.getAttribute('href')).toBe('https://www.bircans.com/guven#tools')
+    expect(host.querySelector('a[href="/#library"]')?.textContent).toBe('←Back to library')
+    await click('Back to library')
+    await fill('#paste-box', 'one two three four five six seven eight nine ten.')
+    await click('Use pasted text')
+    await click('Back to library')
     expect(host.querySelector('.empty-library-tip')).toBeNull()
-    expect(host.querySelector('.site-footer-link')?.textContent).toBe('Back to Bircans')
+    expect(host.querySelector('.site-footer .return-link')?.textContent).toBe('←Tools I built')
   })
   it('applies independent sizes to the RSVP word, paused context and pacer', async () => {
     await fill('#paste-box', 'one two three four five six seven eight nine ten.')
@@ -92,7 +134,7 @@ describe('full reading workflow', () => {
     await fill('#rsvp-font-size', '48')
     await fill('#context-font-size', '24')
     await fill('#font-size', '22')
-    await click('Back')
+    await click('Back to reader')
     expect(host.querySelector<HTMLElement>('.rsvp-stage')?.style.fontSize).toBe('48px')
     expect(host.querySelector<HTMLElement>('.paused-sentence')?.style.fontSize).toBe('24px')
     await click('Show paragraph')
@@ -105,7 +147,7 @@ describe('full reading workflow', () => {
   it('shows saved books before the collapsed import form without hiding action errors', async () => {
     await fill('#paste-box', 'one two three four five six seven eight nine ten.')
     await click('Use pasted text')
-    await click('Books')
+    await click('Back to library')
     const library = host.querySelector('.book-list')!
     const importer = host.querySelector<HTMLDetailsElement>('.import-panel')!
     expect(library.compareDocumentPosition(importer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -159,7 +201,7 @@ describe('full reading workflow', () => {
     expect(storage.books[0].sourceUrl).toBe('https://example.org/book.txt')
     const chosen = [...host.querySelectorAll<HTMLButtonElement>('.context-word')].find((b) => b.textContent === 'seven')!
     await act(async () => chosen.click())
-    await click('Books')
+    await click('Back to library')
     expect(storage.positions.get('test-book')).toBe(6)
     expect(host.textContent).toContain('Internet required')
     await click('Keep offline')
@@ -172,7 +214,7 @@ describe('full reading workflow', () => {
     await click('Continue reading')
     expect(host.querySelector('.word-mark')?.textContent).toBe('seven')
     expect(storage.books[0].cleanedText).toBe('')
-    await click('Books')
+    await click('Back to library')
     fetcher.mockRejectedValueOnce(new TypeError('offline'))
     await click('Continue reading')
     expect(host.querySelector('[role="alert"]')?.textContent).toContain('source could not be read')
@@ -187,7 +229,7 @@ describe('full reading workflow', () => {
     await fill('#import-source', 'https://example.org/book.txt')
     await click('Open from link')
     await act(async () => host.querySelectorAll<HTMLButtonElement>('.context-word')[4].click())
-    await click('Books')
+    await click('Back to library')
     const fingerprint = storage.books[0].fingerprint
     const position = storage.positions.get('test-book')
     fetcher.mockResolvedValueOnce(new Response('a completely different edition', { headers: { 'content-type': 'text/plain' } }))
@@ -218,10 +260,10 @@ describe('full reading workflow', () => {
     expect(repeated[0].getAttribute('aria-current')).toBeNull()
     const position = storage.positions.get('test-book')
     await click('Settings')
-    await click('Back')
+    await click('Back to reader')
     expect(host.querySelector('.word-mark')?.textContent).toBe('one')
     expect(storage.positions.get('test-book')).toBe(position)
-    await click('Books')
+    await click('Back to library')
     expect(host.textContent).toContain('Continue reading')
     await fill('#paste-box', text)
     await click('Use pasted text')
@@ -240,7 +282,7 @@ describe('full reading workflow', () => {
     const position = storage.positions.get('test-book')
     await act(async () => vi.advanceTimersByTime(10000))
     expect(storage.positions.get('test-book')).toBe(position)
-    await click('Back')
+    await click('Back to reader')
     expect(host.querySelector('.pacer-word-active')?.textContent?.trim()).toBe('four')
     expect([...host.querySelectorAll('button')].some((b) => b.textContent === 'Play')).toBe(true)
   })

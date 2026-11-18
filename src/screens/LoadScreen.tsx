@@ -1,3 +1,4 @@
+import { PortfolioLink } from '../components/ReturnLink'
 import { useState } from 'react'
 import type { StoredBook } from '../storage/booksDb'
 import { downloadBackup, importBackup } from '../storage/backup'
@@ -108,6 +109,7 @@ export function LoadScreen({
 
   return (
     <div className="screen">
+      <PortfolioLink />
       <header className="top-bar">
         <h1 className="brand">Speed Reader</h1>
         <div className="top-bar-actions">
@@ -234,9 +236,7 @@ export function LoadScreen({
       </section>
 
       <footer className="site-footer">
-        <a className="site-footer-link" href="https://www.bircans.com/guven" rel="noopener noreferrer">
-          Back to Bircans
-        </a>
+        <PortfolioLink />
       </footer>
     </div>
   )
