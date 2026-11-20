@@ -1,5 +1,7 @@
 # Speed Reader
 
+Local icon update (20 November 2026): the owner selected the open-book/forward-cue design. Browser favicon, 192/512px PWA icons and the 180px Apple icon match; a separate opaque, padded maskable icon protects the mark when cropped. These are checked-in static assets. The old generator was removed because it would overwrite them with the previous mark. Prepared on `feat/reading-icon`; the owner approved commit, publication and merge. Consult PR history and hosting for release status. All 95 tests pass using native config loading and thread workers; lint passes with its existing App.tsx effect warning. TypeScript and the production build pass using Vite native config loading. A fresh isolated mobile browser checked icon/manifest requests, keyboard focus, no overflow and no page errors. Physical Home Screen installation remains unverified.
+
 A private, phone-first reading app for one public-domain Project Gutenberg book (plain `.txt`).
 
 Read one word at a time (RSVP) or with a moving highlight (pacer). Reading data stays on your device. Downloaded books work offline as an installable PWA; linked books need internet unless you choose **Keep offline**.
